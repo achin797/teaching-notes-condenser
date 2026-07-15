@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Telegram -> Bedrock condense -> Notion pipeline for class notes.
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    NoEcho: true
+  TelegramWebhookSecret:
+    Type: String
+    NoEcho: true
+    Description: Random string; also passed as secret_token when registering the Telegram webhook.
+  AllowedChatId:
+    Type: String
+    Description: Your Telegram numeric user id (from @userinfobot). Only this chat may use the bot.
+  NotionToken:
+    Type: String
+    NoEcho: true
+  NotionDbId:
+    Type: String
+    Default: 39a3ef887ec880fea091f615459e13f5
+  BedrockModelId:
+    Type: String
+    Description: Bedrock model or inference-profile id, e.g. a Claude Sonnet-class model.
+  LocalTz:
+    Type: String
+    Default: Asia/Kolkata
+
+Resources:
+  BufferTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expireAt
+        Enabled: true
+
+  CondenserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: handler.handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_WEBHOOK_SECRET: !Ref TelegramWebhookSecret
+          ALLOWED_CHAT_ID: !Ref AllowedChatId
+          NOTION_TOKEN: !Ref NotionToken
+          NOTION_DB_ID: !Ref NotionDbId
+          NOTION_VERSION: "2022-06-28"
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          LOCAL_TZ: !Ref LocalTz
+          BUFFER_TABLE: !Ref BufferTable
+      FunctionUrlConfig:
+        AuthType: NONE
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BufferTable
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: "*"
+
+Outputs:
+  FunctionUrl:
+    Description: Register this as the Telegram webhook URL.
+    Value: !GetAtt CondenserFunctionUrl.FunctionUrl
+  BufferTableName:
+    Value: !Ref BufferTable
