@@ -79,13 +79,8 @@ def handler(event, context):
             return _OK
         raw_notes = "\n".join(chunks)
         try:
-            result = condense.condense(raw_notes)
-            url = notion.create_entry(
-                title=result["title"],
-                students=result["students"],
-                condensed=result["condensed"],
-                raw_notes=raw_notes,
-            )
+            condensed = condense.condense(raw_notes)
+            url = notion.create_entry(condensed=condensed, raw_notes=raw_notes)
             telegram.send_message(chat_id, f"✅ Added to Notion\n{url}")
         except Exception:
             logger.exception("Failed to condense/write notes for chat_id=%s", chat_id)

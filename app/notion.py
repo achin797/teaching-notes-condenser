@@ -50,16 +50,17 @@ def _body_paragraphs(heading: str, text: str) -> list:
     return blocks
 
 
-def create_entry(title: str, students: list, condensed: str, raw_notes: str) -> str:
+def create_entry(condensed: str, raw_notes: str) -> str:
     """Create a Notion page in the class-notes database. Returns the new page's URL."""
-    today = datetime.now(ZoneInfo(LOCAL_TZ)).strftime("%Y-%m-%d")
+    now = datetime.now(ZoneInfo(LOCAL_TZ))
+    # Title defaults to the month name followed by the day number, e.g. "July 16".
+    title = f"{now.strftime('%B')} {now.day}"
 
     payload = {
         "parent": {"database_id": NOTION_DB_ID},
         "properties": {
             "Name": {"title": [{"text": {"content": title}}]},
-            "Date": {"date": {"start": today}},
-            "Multi-select": {"multi_select": [{"name": s} for s in students]},
+            "Date": {"date": {"start": now.strftime("%Y-%m-%d")}},
             "Condensed notes": {"rich_text": chunk(condensed)},
             "Raw notes": {"rich_text": chunk(raw_notes)},
         },

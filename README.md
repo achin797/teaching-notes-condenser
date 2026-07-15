@@ -2,8 +2,8 @@
 
 Send raw class notes to a Telegram bot. It condenses them with Bedrock Claude
 into the journal-entry format below and adds a row to your Notion database with
-the raw notes, the condensed entry, an auto title, today's date, and the
-students who attended (Multi-select).
+the raw notes, the condensed entry, a title (the month and day, e.g. "July 16"),
+and today's date.
 
 ```
 raw notes -> Telegram bot -> Lambda (Bedrock condense + write to Notion) -> Notion row
@@ -34,7 +34,7 @@ AWS Lambda  (single function — app/handler.py orchestrates everything below)
 | AWS Lambda        | receives the webhook, routes commands, orchestrates the pipeline  | `app/handler.py`    |
 | DynamoDB          | holds a chat's buffered messages until `/done`; dedupes retries    | `app/buffer.py`     |
 | Bedrock (Claude)  | runs the condensing prompt over the raw notes                     | `app/condense.py`, `app/prompt.txt` |
-| Notion API        | creates the row: title, date, attendee names, condensed + raw text | `app/notion.py`     |
+| Notion API        | creates the row: title, date, condensed + raw text                | `app/notion.py`     |
 
 Everything runs on request — there's no server to keep up. Lambda + DynamoDB
 only cost anything while actually processing a message, which for this
@@ -98,8 +98,8 @@ curl -s https://api.notion.com/v1/databases/39a3ef887ec880fea091f615459e13f5 \
   -H "Notion-Version: 2022-06-28" | python3 -m json.tool
 ```
 
-Expect `properties` to contain `Name`, `Multi-select`, `Condensed notes`,
-`Raw notes`, `Date`. If you get a 404, redo the "share with integration" step.
+Expect `properties` to contain `Name`, `Condensed notes`, `Raw notes`, `Date`.
+If you get a 404, redo the "share with integration" step.
 
 ## Deploy
 
@@ -184,15 +184,13 @@ the bot again while it's tailing.
 
 ## Verification checklist
 
-- [ ] Notion access curl above returns the 5 expected properties.
+- [ ] Notion access curl above returns the 4 expected properties.
 - [ ] `sam deploy` succeeds and prints a `FunctionUrl`.
 - [ ] `getWebhookInfo` shows no `last_error_message`.
 - [ ] End-to-end: send 2-3 messages of real notes + `/done` → bot confirms and a
-      new Notion row appears with today's date, an auto title, the Multi-select
-      populated with the students named in your notes, verbatim raw notes, and
-      a condensed entry in the 6-section format. Confirm returning students'
-      names reuse the same Multi-select option rather than forking into a
-      near-duplicate spelling.
+      new Notion row appears with today's date, a month-and-day title (e.g.
+      "July 16"), verbatim raw notes, and a condensed entry in the 6-section
+      format.
 - [ ] Security: POST to the Function URL without the `X-Telegram-Bot-Api-Secret-Token`
       header → should be silently ignored (200, no Notion row). Message the bot
       from a different Telegram account → "Not authorized", no row.
@@ -209,9 +207,6 @@ the bot again while it's tailing.
   raw notes and condensed entries are split into multiple rich_text chunks in
   the database properties, and mirrored as paragraph blocks in the page body
   (under "Condensed" / "Raw notes" headings) for comfortable reading.
-- **Multi-select = attendance, not tags**: the model extracts the names of
-  students who came to that class (copied exactly as spelled in your notes) —
-  it is not asked to invent thematic tags.
 - **Timezone data**: computing the Date field needs `zoneinfo` to resolve
   `LOCAL_TZ` (e.g. `Asia/Kolkata`), but Lambda's Python runtime often ships
   without the IANA timezone database. `tzdata` is in `app/requirements.txt`
