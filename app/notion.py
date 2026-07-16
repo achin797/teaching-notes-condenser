@@ -5,8 +5,9 @@ from zoneinfo import ZoneInfo
 import requests
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
-NOTION_DB_ID = os.environ["NOTION_DB_ID"]
-NOTION_VERSION = os.environ.get("NOTION_VERSION", "2022-06-28")
+NOTION_DATA_SOURCE_ID = os.environ["NOTION_DATA_SOURCE_ID"]
+# 2026-03-11 or later is required for the page-content "markdown" field.
+NOTION_VERSION = os.environ.get("NOTION_VERSION", "2026-03-11")
 LOCAL_TZ = os.environ.get("LOCAL_TZ", "Asia/Kolkata")
 
 API_BASE = "https://api.notion.com/v1"
@@ -30,18 +31,6 @@ def chunk(text: str) -> list:
     ]
 
 
-def _body_paragraphs(text: str) -> list:
-    """Paragraph blocks for the page body, chunked to Notion's 2000-char limit."""
-    return [
-        {
-            "object": "block",
-            "type": "paragraph",
-            "paragraph": {"rich_text": [piece]},
-        }
-        for piece in chunk(text)
-    ]
-
-
 def create_entry(condensed: str, raw_notes: str) -> str:
     """Create a Notion page in the class-notes database. Returns the new page's URL."""
     now = datetime.now(ZoneInfo(LOCAL_TZ))
@@ -49,13 +38,15 @@ def create_entry(condensed: str, raw_notes: str) -> str:
     title = f"{now.strftime('%B')} {now.day}"
 
     payload = {
-        "parent": {"database_id": NOTION_DB_ID},
+        "parent": {"type": "data_source_id", "data_source_id": NOTION_DATA_SOURCE_ID},
         "properties": {
             "Name": {"title": [{"text": {"content": title}}]},
             "Date": {"date": {"start": now.strftime("%Y-%m-%d")}},
             "Raw notes": {"rich_text": chunk(raw_notes)},
         },
-        "children": _body_paragraphs(condensed),
+        # Notion parses this server-side into real blocks; markdown must not be
+        # pre-chunked, since splitting mid-token would corrupt the syntax.
+        "markdown": condensed,
     }
 
     resp = requests.post(f"{API_BASE}/pages", headers=HEADERS, json=payload, timeout=20)

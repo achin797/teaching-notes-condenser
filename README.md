@@ -112,7 +112,8 @@ You'll be prompted for the stack parameters:
 - `TelegramWebhookSecret` — make up a random string (e.g. `openssl rand -hex 20`)
 - `AllowedChatId` — your Telegram user id
 - `NotionToken`
-- `NotionDbId` — defaults to the database already wired up in this repo
+- `NotionDataSourceId` — in Notion, open the database's settings menu, then
+  Manage data sources -> Copy data source ID
 - `BedrockModelId` — the **inference profile ID** from step 4b above (e.g.
   `global.anthropic.claude-sonnet-4-6`), not the bare model ID. Recommend a
   Sonnet-class model; Opus is ~5-10x pricier for no quality gain on notes this
