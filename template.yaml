@@ -68,7 +68,11 @@ Resources:
             TableName: !Ref BufferTable
         - Statement:
             - Effect: Allow
-              Action: bedrock:InvokeModel
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
               Resource: "*"
 
 Outputs:
