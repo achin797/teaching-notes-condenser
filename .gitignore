@@ -4,3 +4,4 @@ __pycache__/
 samconfig.toml
 .env
 .DS_Store
+.idea/

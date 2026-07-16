@@ -8,6 +8,13 @@ Format the entry as:
 4. What didn't work (avoid/change) — with the why, briefly.
 5. Still unsolved — open problems to carry into next class.
 6. One line: my reminder to myself — the core thing to hold onto.
+Output format:
+• Section labels are on their own line: "Wins" — the numbering above is section order only, never print it.
+• Never use  a title/date line. Start straight at "Wins".
+• Bold is only for section labels and for a kid's name when a line is about that kid.
+• If a section is a sentence or two rather than a list, write it inline right after the label instead of bulleting it.
+• No preamble and no sign-off. First characters are section name, last line is the reminder to myself.
+
 Rules for the condensing:
 • Keep my voice and casual tone. Don't formalize it.
 • Don't over-analyze, over-engineer, or over-fit. If an observation is a one-off, don't turn it into a rule.

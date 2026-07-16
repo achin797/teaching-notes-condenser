@@ -30,24 +30,16 @@ def chunk(text: str) -> list:
     ]
 
 
-def _body_paragraphs(heading: str, text: str) -> list:
-    """Heading + paragraph blocks for the page body, chunked to Notion's 2000-char limit."""
-    blocks = [
+def _body_paragraphs(text: str) -> list:
+    """Paragraph blocks for the page body, chunked to Notion's 2000-char limit."""
+    return [
         {
             "object": "block",
-            "type": "heading_2",
-            "heading_2": {"rich_text": [{"text": {"content": heading}}]},
+            "type": "paragraph",
+            "paragraph": {"rich_text": [piece]},
         }
+        for piece in chunk(text)
     ]
-    for piece in chunk(text):
-        blocks.append(
-            {
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {"rich_text": [piece]},
-            }
-        )
-    return blocks
 
 
 def create_entry(condensed: str, raw_notes: str) -> str:
@@ -61,13 +53,9 @@ def create_entry(condensed: str, raw_notes: str) -> str:
         "properties": {
             "Name": {"title": [{"text": {"content": title}}]},
             "Date": {"date": {"start": now.strftime("%Y-%m-%d")}},
-            "Condensed notes": {"rich_text": chunk(condensed)},
             "Raw notes": {"rich_text": chunk(raw_notes)},
         },
-        "children": (
-            _body_paragraphs("Condensed", condensed)
-            + _body_paragraphs("Raw notes", raw_notes)
-        ),
+        "children": _body_paragraphs(condensed),
     }
 
     resp = requests.post(f"{API_BASE}/pages", headers=HEADERS, json=payload, timeout=20)

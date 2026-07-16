@@ -1,9 +1,8 @@
 # Teaching notes condenser
 
 Send raw class notes to a Telegram bot. It condenses them with Bedrock Claude
-into the journal-entry format below and adds a row to your Notion database with
-the raw notes, the condensed entry, a title (the month and day, e.g. "July 16"),
-and today's date.
+and adds a row to your Notion database: title (month and day, e.g. "July 16"),
+today's date, the raw notes, and the condensed entry as the page body.
 
 ```
 raw notes -> Telegram bot -> Lambda (Bedrock condense + write to Notion) -> Notion row
@@ -98,7 +97,7 @@ curl -s https://api.notion.com/v1/databases/39a3ef887ec880fea091f615459e13f5 \
   -H "Notion-Version: 2022-06-28" | python3 -m json.tool
 ```
 
-Expect `properties` to contain `Name`, `Condensed notes`, `Raw notes`, `Date`.
+Expect `properties` to contain `Name`, `Date`, `Raw notes`.
 If you get a 404, redo the "share with integration" step.
 
 ## Deploy
@@ -184,7 +183,7 @@ the bot again while it's tailing.
 
 ## Verification checklist
 
-- [ ] Notion access curl above returns the 4 expected properties.
+- [ ] Notion access curl above returns the 3 expected properties.
 - [ ] `sam deploy` succeeds and prints a `FunctionUrl`.
 - [ ] `getWebhookInfo` shows no `last_error_message`.
 - [ ] End-to-end: send 2-3 messages of real notes + `/done` → bot confirms and a
@@ -203,10 +202,10 @@ the bot again while it's tailing.
 - **Idempotency**: Telegram retries the webhook if it doesn't get a fast 200.
   Each `update_id` is recorded in DynamoDB (1h TTL) so a slow Bedrock call never
   creates a duplicate Notion row.
-- **Chunking**: Notion caps a single rich_text object at 2000 characters. Long
-  raw notes and condensed entries are split into multiple rich_text chunks in
-  the database properties, and mirrored as paragraph blocks in the page body
-  (under "Condensed" / "Raw notes" headings) for comfortable reading.
+- **Chunking**: Notion caps a single rich_text object at 2000 characters, so long
+  raw notes are split into multiple rich_text chunks in the `Raw notes` property.
+  The condensed entry is the page body, chunked the same way into paragraph
+  blocks.
 - **Timezone data**: computing the Date field needs `zoneinfo` to resolve
   `LOCAL_TZ` (e.g. `Asia/Kolkata`), but Lambda's Python runtime often ships
   without the IANA timezone database. `tzdata` is in `app/requirements.txt`
