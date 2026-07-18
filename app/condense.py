@@ -16,6 +16,6 @@ def condense(raw_notes: str) -> str:
     response = _bedrock.converse(
         modelId=BEDROCK_MODEL_ID,
         messages=[{"role": "user", "content": [{"text": prompt}]}],
-        inferenceConfig={"temperature": 0.3, "maxTokens": 4096},
+        inferenceConfig={"temperature": 0.2, "maxTokens": 4096},
     )
     return response["output"]["message"]["content"][0]["text"]

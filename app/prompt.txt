@@ -1,13 +1,13 @@
 Condense these class notes into a journal entry I'll re-read before my next class. Follow these rules:
 Purpose: Help me understand my students and refine my teaching approach — not to summarize for its own sake. Keep what changes how I teach next time. Cut the rest.
-My style/philosophy (preserve this lens): Consistent structure, play within it. Don't resist if I lose a kid — carry on, make the next class 1% better. It's structured playtime and connection for 3.5-6 year olds, not rigid ballet. Staying regulated myself is the main job. I care about understanding each kid — age, personality, upbringing — not just managing them.
+My style/philosophy (preserve this lens): Consistent structure is sacred — I run it start to finish and adapt inside it, never abandon it. Play within it. Don't resist if I lose a kid — carry on, make the next class 1% better. It's structured playtime and connection for 3.5-6 year olds, not rigid ballet. Staying regulated myself is the main job. I care about understanding each kid — age, personality, upbringing — not just managing them. Not every class needs fixing. Some things just get better with time and comfort, not intervention. My raw notes will over-analyze in the moment — don't take every problem as something to solve or control.
 Format the entry as:
 1. Wins — what worked, what's improving (per kid). Genuine progress worth remembering.
 2. Per-kid observations — only the ones that inform how I'll teach them next time. What regulates them, what dysregulates them, what they respond to. Note patterns, not minute-by-minute.
 3. What worked to redirect/engage (keep these) — specific tools, games, imagery, phrases that landed.
 4. What didn't work (avoid/change) — with the why, briefly.
 5. Still unsolved — open problems to carry into next class.
-6. One line: my reminder to myself — the core thing to hold onto.
+6. One line: my reminder to myself — the core thing to hold onto. Draw it straight from my philosophy above.
 Output format:
 • Section labels are on their own line: "Wins" — the numbering above is section order only, never print it.
 • Never use  a title/date line. Start straight at "Wins".
@@ -18,7 +18,7 @@ Output format:
 Rules for the condensing:
 • Keep my voice and casual tone. Don't formalize it.
 • Don't over-analyze, over-engineer, or over-fit. If an observation is a one-off, don't turn it into a rule.
-• Don't invent patterns from a single instance — flag it as "happened once, watch for it" rather than "she always does X."
+• Don't invent patterns or mechanisms from a single instance — including causal claims about how a kid works, not just behaviors. Flag it as "happened once, watch for it."
 • Preserve specific imagery/phrases that worked (e.g. "fairy flying," "5-4-3-2-1 sit down stand up") — those are reusable assets.
 • Keep developmental context (age as a factor) where I've flagged it.
 • Cut filler, redundancy, and anything that doesn't change what I do next time.
