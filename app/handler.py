@@ -15,7 +15,8 @@ _HELP_TEXT = (
     "condense them and add them to Notion.\n\n"
     "Commands:\n"
     "/start, /help — show this message\n"
-    "/done — finalize the buffered notes"
+    "/done — finalize the buffered notes\n"
+    "/quit — discard the buffered notes and start over"
 )
 
 _OK = {"statusCode": 200, "body": ""}
@@ -68,6 +69,14 @@ def handler(event, context):
 
     if stripped in ("/start", "/help"):
         telegram.send_message(chat_id, _HELP_TEXT)
+        return _OK
+
+    if stripped == "/quit":
+        chunks = buffer.get_and_clear_buffer(chat_id)
+        if not chunks:
+            telegram.send_message(chat_id, "Nothing buffered — already a clean slate.")
+        else:
+            telegram.send_message(chat_id, "Buffer cleared. Send new notes whenever you're ready.")
         return _OK
 
     if stripped == "/done":

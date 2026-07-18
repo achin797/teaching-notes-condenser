@@ -148,7 +148,8 @@ The second command should show your URL with `pending_update_count: 0` and no
 2. Send `/done`.
 3. The bot replies `✅ Added to Notion` with a link once the row is created.
 
-Other commands: `/start` or `/help` for usage instructions.
+Other commands: `/start` or `/help` for usage instructions, `/quit` to discard
+the buffered notes and start over.
 
 ## Troubleshooting
 
@@ -198,8 +199,8 @@ the bot again while it's tailing.
 ## Notes on the design
 
 - **Buffering**: raw notes often exceed Telegram's 4096-char message cap, so
-  plain-text messages are buffered per chat in DynamoDB until you send `/done`.
-  Buffers auto-expire after 6 hours if abandoned.
+  plain-text messages are buffered per chat in DynamoDB until you send `/done`
+  (or discarded with `/quit`). Buffers auto-expire after 6 hours if abandoned.
 - **Idempotency**: Telegram retries the webhook if it doesn't get a fast 200.
   Each `update_id` is recorded in DynamoDB (1h TTL) so a slow Bedrock call never
   creates a duplicate Notion row.
