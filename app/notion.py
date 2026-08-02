@@ -17,12 +17,13 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-# Notion caps a single rich_text object's text.content at 2000 chars.
-_CHUNK_SIZE = 2000
+# A note with an emoji once got rejected by Notion and lost. An emoji counts
+# as 1 char to us but 2 toward Notion's 2000 limit. Trim size to leave slack.
+_CHUNK_SIZE = 1990
 
 
 def chunk(text: str) -> list:
-    """Split text into a list of Notion rich_text objects, each <= 2000 chars."""
+    """Split text into a list of Notion rich_text objects, each <= _CHUNK_SIZE chars."""
     if not text:
         return [{"text": {"content": ""}}]
     return [
@@ -50,5 +51,7 @@ def create_entry(condensed: str, raw_notes: str) -> str:
     }
 
     resp = requests.post(f"{API_BASE}/pages", headers=HEADERS, json=payload, timeout=20)
+    if not resp.ok:
+        print(f"Notion API error {resp.status_code}: {resp.text}")
     resp.raise_for_status()
     return resp.json()["url"]
