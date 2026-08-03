@@ -60,7 +60,7 @@ def handler(event, context):
         return _OK
 
     # 4. Idempotency: Telegram retries the webhook if it doesn't get a fast 200,
-    # which would otherwise create duplicate Notion rows on a slow Bedrock call.
+    # which would otherwise create duplicate Notion rows on a slow model call.
     if update_id is not None and buffer.is_duplicate_update(update_id):
         logger.info("Skipping already-processed update_id=%s", update_id)
         return _OK

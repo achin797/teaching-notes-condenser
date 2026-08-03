@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Telegram -> Bedrock condense -> Notion pipeline for class notes.
+  Telegram -> Gemini condense -> Notion pipeline for class notes.
 
 Parameters:
   TelegramBotToken:
@@ -21,9 +21,19 @@ Parameters:
     Type: String
     Description: >
       From the database's settings menu: Manage data sources -> Copy data source ID.
-  BedrockModelId:
+  VertexProject:
     Type: String
-    Description: Bedrock model or inference-profile id, e.g. a Claude Sonnet-class model.
+    Description: >
+      GCP project id billed for Vertex AI. Auth is Workload Identity Federation
+      via app/gcp-wif-credentials.json — there is no key or API key to supply.
+  VertexLocation:
+    Type: String
+    Default: global
+    Description: Vertex AI location. "global" avoids per-region model availability checks.
+  GeminiModelId:
+    Type: String
+    Default: gemini-3.6-flash
+    Description: Gemini model id, e.g. gemini-3.6-flash.
   LocalTz:
     Type: String
     Default: Asia/Kolkata
@@ -49,7 +59,7 @@ Resources:
       CodeUri: app/
       Handler: handler.handler
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 120
       MemorySize: 512
       Environment:
         Variables:
@@ -59,7 +69,12 @@ Resources:
           NOTION_TOKEN: !Ref NotionToken
           NOTION_DATA_SOURCE_ID: !Ref NotionDataSourceId
           NOTION_VERSION: "2026-03-11"
-          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          VERTEX_PROJECT: !Ref VertexProject
+          VERTEX_LOCATION: !Ref VertexLocation
+          GEMINI_MODEL_ID: !Ref GeminiModelId
+          # Workload Identity Federation config. Contains no secret — only pool,
+          # provider and service-account references. /var/task is the Lambda root.
+          GOOGLE_APPLICATION_CREDENTIALS: /var/task/gcp-wif-credentials.json
           LOCAL_TZ: !Ref LocalTz
           BUFFER_TABLE: !Ref BufferTable
       FunctionUrlConfig:
@@ -67,14 +82,6 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BufferTable
-        - Statement:
-            - Effect: Allow
-              Action:
-                - bedrock:InvokeModel
-                - bedrock:Converse
-                - aws-marketplace:ViewSubscriptions
-                - aws-marketplace:Subscribe
-              Resource: "*"
 
 Outputs:
   FunctionUrl:
