@@ -38,14 +38,15 @@ def condense(raw_notes: str) -> str:
     prompt = _PROMPT_TEMPLATE.replace("{RAW_NOTES}", raw_notes)
 
     # temperature is deprecated and silently ignored on gemini-3.6-flash (no
-    # error, no warning). thinking_level is the model's real lever now — HIGH
-    # gives it more room to catch itself inventing a pattern from one instance,
-    # which is what prompt.txt's guardrails are asking it to do.
+    # error, no warning) — thinking_level is the real lever now. Pinned
+    # explicitly to MEDIUM (this model's own default) rather than left unset,
+    # so behavior doesn't silently drift if Google changes the default or
+    # GEMINI_MODEL_ID moves to a model with a different one.
     response = _client.models.generate_content(
         model=GEMINI_MODEL_ID,
         contents=prompt,
         config=types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_level="HIGH"),
+            thinking_config=types.ThinkingConfig(thinking_level="MEDIUM"),
         ),
     )
     if not response.text:
