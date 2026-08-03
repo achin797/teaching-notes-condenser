@@ -37,10 +37,16 @@ def condense(raw_notes: str) -> str:
     """Call Gemini to condense raw_notes. Returns the condensed markdown entry."""
     prompt = _PROMPT_TEMPLATE.replace("{RAW_NOTES}", raw_notes)
 
+    # temperature is deprecated and silently ignored on gemini-3.6-flash (no
+    # error, no warning). thinking_level is the model's real lever now — HIGH
+    # gives it more room to catch itself inventing a pattern from one instance,
+    # which is what prompt.txt's guardrails are asking it to do.
     response = _client.models.generate_content(
         model=GEMINI_MODEL_ID,
         contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.2),
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_level="HIGH"),
+        ),
     )
     if not response.text:
         finish_reason = (
