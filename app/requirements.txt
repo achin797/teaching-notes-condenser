@@ -1,3 +1,4 @@
 requests
 tzdata
 google-genai
+google-auth

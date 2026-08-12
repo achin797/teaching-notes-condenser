@@ -9,13 +9,15 @@ BUFFER_TABLE = os.environ["BUFFER_TABLE"]
 _dynamodb = boto3.resource("dynamodb")
 _table = _dynamodb.Table(BUFFER_TABLE)
 
-# Single table holds two item kinds, distinguished by pk prefix:
+# Single table holds three item kinds, distinguished by pk prefix:
 #   "buf#<chat_id>" - the in-progress raw-notes buffer for a chat
 #   "upd#<update_id>" - a marker for an already-processed Telegram update_id
+#   "sync#drive" - last Drive sync state (content hash); no TTL, must persist
 # One table keeps infra (template.yaml) simple; a "pk" string partition key
 # with no sort key is enough since each item is looked up by its full key.
 BUFFER_TTL_SECONDS = 6 * 60 * 60  # abandoned buffers self-clean after 6h
 DEDUP_TTL_SECONDS = 60 * 60  # dedup markers only need to outlive Telegram's retry window
+SYNC_PK = "sync#drive"
 
 
 def append_chunk(chat_id, text: str) -> int:
@@ -61,3 +63,18 @@ def is_duplicate_update(update_id) -> bool:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return True
         raise
+
+
+def get_sync_hash() -> str | None:
+    """Return the content hash from the last successful Drive sync, or None."""
+    resp = _table.get_item(Key={"pk": SYNC_PK})
+    item = resp.get("Item")
+    return item.get("contentHash") if item else None
+
+
+def put_sync_hash(content_hash: str) -> None:
+    # No expireAt on this item: the table's TTL only reaps items that carry
+    # that attribute, so omitting it makes this record persist indefinitely.
+    _table.put_item(
+        Item={"pk": SYNC_PK, "contentHash": content_hash, "syncedAt": int(time.time())}
+    )

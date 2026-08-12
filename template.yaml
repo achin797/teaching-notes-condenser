@@ -21,6 +21,17 @@ Parameters:
     Type: String
     Description: >
       From the database's settings menu: Manage data sources -> Copy data source ID.
+  DriveDocId:
+    Type: String
+    Description: >
+      File ID of the Google Doc that mirrors the Notion DB for NotebookLM, from
+      its URL: docs.google.com/document/d/<FILE_ID>/edit. The Doc must be owned
+      by a real Google account (not the service account) and shared as Editor
+      with the VertexProject's teaching-notes-vertex service account.
+  NotionStudentsProperty:
+    Type: String
+    Default: Multi-select
+    Description: Notion multi-select property holding student names, exported into the Doc.
   VertexProject:
     Type: String
     Description: >
@@ -83,9 +94,56 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref BufferTable
 
+  DriveSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: drive_sync.handler
+      Runtime: python3.12
+      # ~1 Notion call per session plus rate-limit pacing; generous headroom
+      # past current volume (50 sessions ~= 20s).
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          NOTION_TOKEN: !Ref NotionToken
+          NOTION_DATA_SOURCE_ID: !Ref NotionDataSourceId
+          NOTION_VERSION: "2026-03-11"
+          NOTION_STUDENTS_PROPERTY: !Ref NotionStudentsProperty
+          DRIVE_DOC_ID: !Ref DriveDocId
+          # Same WIF credentials file as CondenserFunction, requesting a
+          # Drive scope instead of a Vertex one.
+          GOOGLE_APPLICATION_CREDENTIALS: /var/task/gcp-wif-credentials.json
+          LOCAL_TZ: !Ref LocalTz
+          BUFFER_TABLE: !Ref BufferTable
+      # No FunctionUrlConfig: scheduled only, never a public endpoint.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BufferTable
+      Events:
+        # Weekend polling, every 6h, IST. EventBridge Scheduler (ScheduleV2)
+        # is used rather than plain Schedule (EventBridge Rules) because only
+        # Scheduler supports ScheduleExpressionTimezone — IST's UTC+5:30
+        # offset can't be expressed cleanly as a UTC cron for "weekend".
+        WeekendPoll:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "cron(0 0/6 ? * SAT,SUN *)"
+            ScheduleExpressionTimezone: Asia/Kolkata
+        # Weekend polling ends Sun 18:00 IST; a Sunday-evening class would
+        # otherwise wait until the following Saturday. This closes that gap.
+        MondayCatchUp:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "cron(0 0 ? * MON *)"
+            ScheduleExpressionTimezone: Asia/Kolkata
+
 Outputs:
   FunctionUrl:
     Description: Register this as the Telegram webhook URL.
     Value: !GetAtt CondenserFunctionUrl.FunctionUrl
   BufferTableName:
     Value: !Ref BufferTable
+  DriveSyncFunctionName:
+    Description: Invoke manually to force a sync outside the weekend schedule.
+    Value: !Ref DriveSyncFunction

@@ -4,9 +4,17 @@ Send raw class notes to a Telegram bot. It condenses them with Gemini 3.6 Flash
 on Vertex AI and adds a row to your Notion database: title (month and day, e.g.
 "July 16"), today's date, the raw notes, and the condensed entry as the page body.
 
+A second, independent pipeline mirrors that Notion database into a Google Doc on
+a schedule, so it can be used as a live NotebookLM source — ask questions about
+your classes, spot patterns across a term, plan the next one.
+
 ```
 raw notes -> Telegram bot -> Lambda (Vertex condense + write to Notion) -> Notion row
+Notion DB  -> Lambda (scheduled, reads + renders) -> Google Doc -> NotebookLM (auto-synced)
 ```
+
+Nothing connects the two pipelines — the Drive sync only ever reads Notion. It
+also picks up notes you edit directly in Notion, not just ones the bot wrote.
 
 ## Architecture
 
@@ -38,6 +46,51 @@ AWS Lambda  (single function — app/handler.py orchestrates everything below)
 Everything runs on request — there's no server to keep up. Lambda + DynamoDB
 only cost anything while actually processing a message, which for this
 use case (a few classes a week) is effectively free.
+
+### Notion → Drive → NotebookLM (second pipeline)
+
+```
+EventBridge Scheduler (weekends, every 6h, IST + one Monday 00:00 catch-up)
+      │
+      ▼
+AWS Lambda  (app/drive_sync.py)
+      │
+      ├─ query every row, oldest first ──────────▶ Notion API (data source query)
+      ├─ fetch each page's condensed body ───────▶ Notion API (GET .../markdown)
+      ├─ render one markdown document
+      ├─ hash it, skip the Drive write if unchanged since last run
+      └─ overwrite the whole Doc's content ──────▶ Google Drive API (multipart update)
+                                                          │
+                                                          ▼
+                                          Google Doc, same file ID every run
+                                                          │
+                                                          ▼ (automatic — no click)
+                                                     NotebookLM source
+```
+
+| Piece              | Role                                                             | File                  |
+|---------------------|-------------------------------------------------------------------|-----------------------|
+| EventBridge Scheduler | fires the sync Lambda on a cron, in `Asia/Kolkata`               | `template.yaml` (`ScheduleV2` events) |
+| AWS Lambda          | reads Notion, renders the Doc, writes Drive, tracks the last hash | `app/drive_sync.py`   |
+| Notion API (read)   | data source query + per-page markdown fetch                      | `app/notion_read.py`  |
+| Google Drive API    | overwrites the target Doc's full content on each change           | `app/drive.py`        |
+| DynamoDB            | stores the SHA-256 of the last Doc content written (`sync#drive` item) | `app/buffer.py`  |
+| NotebookLM          | auto-syncs the Doc once added as a source — no manual re-add ever | (Google's UI, one-time) |
+
+**Why a full overwrite every run, not an incremental append**: the sync has no
+per-page state beyond one content hash. Every run re-reads the entire Notion
+database and re-renders the whole Doc from scratch, so edits, deletions, and
+reorders in Notion all show up correctly — there is nothing that can drift out
+of sync. The hash exists only so an unchanged run skips the Drive write
+(so NotebookLM doesn't re-index the Doc for no reason), not to decide what
+content to send.
+
+**Why NotebookLM needs no maintenance after the one-time setup**: Google
+shipped automatic Drive syncing for NotebookLM in May 2026 — native Google
+Docs/Sheets/Slides sources refresh inside a notebook whenever the underlying
+Drive file changes, with no sync button and no setting to turn on. That's the
+whole reason the target is a **Google Doc** and not a plain `.md`/`.txt`/PDF
+file in Drive — only native Workspace files get this treatment.
 
 ## Prerequisites
 
@@ -128,6 +181,73 @@ request with the Lambda role's own credentials from the `AWS_*` env vars
 (no metadata server needed — the library handles Lambda explicitly), exchanges
 it with GCP STS, and impersonates `teaching-notes-vertex`.
 
+## NotebookLM sync setup (one-time, do before deploying the sync)
+
+The Notion→Drive→NotebookLM pipeline needs five one-time steps outside this
+repo, done in order:
+
+1. **Enable the Drive API** on the same GCP project Vertex already runs in:
+   ```bash
+   gcloud services enable drive.googleapis.com --project=<gcp-project-id>
+   ```
+2. **Create the Google Doc yourself** — Drive → New → Google Doc, leave it
+   empty, name it whatever you want to see in NotebookLM (e.g.
+   "Teaching Notes — Primary Batch"). It must be owned by a real Google
+   account, not the service account: service accounts on a consumer Gmail
+   account have no usable Drive storage, and a NotebookLM source has to be a
+   file you can see in your own Drive picker. Copy the file ID from the URL
+   (`docs.google.com/document/d/<FILE_ID>/edit`) — it's the `DriveDocId`
+   stack parameter.
+3. **Share that Doc with the service account as Editor** — Share →
+   `teaching-notes-vertex@<gcp-project-id>.iam.gserviceaccount.com` → Editor →
+   uncheck "Notify people". This is where the sync Lambda's write access comes
+   from — it is a Drive-level permission, not a GCP IAM role, so nothing in
+   4b grants it.
+4. **Turn on "Read content" on the Notion integration** — the integration used
+   by `app/notion.py` has so far only ever written pages. notion.so →
+   Settings → Connections → your integration → Capabilities → check
+   **Read content**. Without this, `GET /pages/{id}/markdown` 403s.
+5. **Extend the Workload Identity Federation trust to the second Lambda's own
+   execution role.** SAM generates a separate IAM role per function
+   (`DriveSyncFunctionRole`, distinct from `CondenserFunctionRole`), and both
+   the WIF provider's `--attribute-condition` and the service account's
+   `workloadIdentityUser` binding from step 4b are pinned to one specific role
+   name. A second Lambda calling Google fails at both checks until both are
+   widened to also allow the new role. Get the actual role name after your
+   first `sam deploy` creates it:
+   ```bash
+   aws cloudformation describe-stack-resources --stack-name <your-stack-name> \
+     --query "StackResources[?LogicalResourceId=='DriveSyncFunctionRole'].PhysicalResourceId" \
+     --output text
+   ```
+   Then widen both checks to an OR of both role names (do **not** widen to a
+   whole-pool or prefix match — that would let *any* future Lambda in this
+   account impersonate the Vertex/Drive service account with no extra step):
+   ```bash
+   P=<gcp-project-id>
+   PROJECT_NUMBER=$(gcloud projects describe $P --format='value(projectNumber)')
+   COND_ROLE=teaching-notes-condenser-CondenserFunctionRole-...   # from 4b
+   SYNC_ROLE=teaching-notes-condenser-DriveSyncFunctionRole-...   # from above
+
+   gcloud iam workload-identity-pools providers update-aws teaching-notes-condenser \
+     --location=global --project=$P --workload-identity-pool=aws-lambda-pool \
+     --attribute-condition="attribute.aws_role=='${COND_ROLE}' || attribute.aws_role=='${SYNC_ROLE}'"
+
+   gcloud iam service-accounts add-iam-policy-binding \
+     "teaching-notes-vertex@${P}.iam.gserviceaccount.com" --project=$P \
+     --role=roles/iam.workloadIdentityUser \
+     --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/aws-lambda-pool/attribute.aws_role/${SYNC_ROLE}"
+   ```
+   IAM policy changes on a service account can take a minute or two to
+   propagate — a `RefreshError` / `getAccessToken denied` right after running
+   this is expected transiently; retry after a short wait before assuming
+   something is actually wrong. This is the same class of gotcha as the
+   role-name pinning documented in Troubleshooting below, now doubled because
+   there are two roles to keep in sync instead of one.
+6. **Add the Doc to NotebookLM only after the first successful sync** (see
+   Deploy, below) — an empty Doc added as a source indexes as empty, and you'd
+   otherwise be relying on auto-sync to pick up the very first write.
+
 ## Confirm the Notion database (before deploying)
 
 Use the **data source id** (settings menu → Manage data sources → Copy data
@@ -168,6 +288,11 @@ You'll be prompted for the stack parameters:
 - `GeminiModelId` — defaults to `gemini-3.6-flash`
 - `LocalTz` — defaults to `Asia/Kolkata`; change if you're not in that timezone
   (used to compute the Date field correctly — Lambda runs in UTC)
+- `DriveDocId` — the Google Doc file ID from step 2 of "NotebookLM sync setup"
+  above
+- `NotionStudentsProperty` — defaults to `Multi-select`, the unrenamed default
+  name of the multi-select property on this database. Only change this if you
+  rename that property in Notion.
 
 After the first `--guided` run, subsequent deploys (e.g. after a code change)
 just need `sam build && sam deploy` — your answers are saved to
@@ -198,6 +323,28 @@ The second command should show your URL with `pending_update_count: 0` and no
 
 Other commands: `/start` or `/help` for usage instructions, `/quit` to discard
 the buffered notes and start over.
+
+### NotebookLM
+
+The Doc syncs on its own — every 6h on weekends (IST), plus a Monday 00:00
+catch-up for anything written after the last weekend poll. Add the Doc to a
+NotebookLM notebook once (notebook → Add source → Google Drive → pick it);
+after that, NotebookLM's automatic Drive sync keeps it current with no further
+action on either side.
+
+To force an immediate sync instead of waiting for the schedule (e.g. right
+after a class, or to verify the pipeline after a change):
+```bash
+aws lambda invoke --function-name <DriveSyncFunctionName output> \
+  --region us-west-1 --cli-read-timeout 300 /dev/stdout
+```
+Expect `{"changed": true, "sessions": N}` if the Notion data changed since the
+last sync, or `{"changed": false, "sessions": N}` if not — either is a
+successful run, distinguished only by whether the Doc was actually rewritten.
+
+Weekday edits to Notion wait until Saturday to reach the Doc — a deliberate
+tradeoff to keep the schedule to 9 invocations/week. The command above is the
+escape hatch when that lag matters.
 
 ## Troubleshooting
 
@@ -260,6 +407,27 @@ the bot again while it's tailing.
       header → should be silently ignored (200, no Notion row). Message the bot
       from a different Telegram account → "Not authorized", no row.
 
+Notion→Drive→NotebookLM pipeline:
+- [ ] Manual invoke (see "NotebookLM" above) returns `{"changed": true, ...}`
+      on first run, with `sessions` matching the row count in Notion.
+- [ ] The Doc shows a real Heading 1 title, one real Heading 2 per session in
+      date order, bold section labels, and a horizontal rule between sessions
+      — not literal `#`/`**`/`---` characters.
+- [ ] Invoking again immediately, with no Notion changes, returns
+      `{"changed": false, ...}` — confirms the hash gate isn't spuriously
+      rewriting the Doc (and thus not spuriously re-triggering NotebookLM's
+      re-index) on every scheduled run.
+- [ ] Edit a note directly in Notion (not via the bot) → invoke → edit shows
+      up in the Doc. Archive a row in Notion → invoke → that session's block
+      disappears from the Doc. Both confirm the full-regenerate design, not
+      just append.
+- [ ] `aws scheduler list-schedules --region us-west-1` shows two schedules
+      targeting `DriveSyncFunction`, both with `Asia/Kolkata` as the timezone.
+- [ ] After adding the Doc as a NotebookLM source, ask it something that
+      depends on freshly-synced content and confirm the answer reflects it.
+      Google publishes no SLA for auto-sync propagation, so give it a few
+      minutes; NotebookLM's own manual per-source refresh works as a nudge.
+
 ## Notes on the design
 
 - **Buffering**: raw notes often exceed Telegram's 4096-char message cap, so
@@ -286,3 +454,31 @@ the bot again while it's tailing.
   Cloud Billing, where credits apply. The Gemini Developer API was tried first
   and abandoned: it bills against an AI Studio prepayment balance that Cloud
   credits cannot fund, so it 429'd the moment that separate balance ran dry.
+- **Drive sync is a full regenerate, not an append**: `app/drive_sync.py`
+  re-reads every row from Notion and re-renders the entire Doc on every run
+  that finds a change. There is no per-page watermark and no diffing. This
+  means an edit, deletion, or reorder in Notion is reflected correctly with no
+  special-case code, at the cost of doing `O(sessions)` Notion API calls on
+  every run — acceptable at the current volume (tens of sessions), revisit
+  with a `last_edited_time` cache in DynamoDB if that ever grows past ~200.
+- **The hash used for change detection excludes the "Last synced" timestamp
+  line** (`app/drive_sync.py`, `_render_sessions` vs `_render`) — hashing the
+  full rendered Doc including that line would make every run look "changed"
+  even when nothing in Notion moved, since the timestamp itself always
+  differs. This bit us once during development: the first version hashed the
+  whole document and `changed: true` never went `false` on a second identical
+  run.
+- **Two separate WIF role bindings, not one**: SAM generates a distinct IAM
+  execution role per Lambda function. `CondenserFunction` and
+  `DriveSyncFunction` are each their own AWS role, so the WIF provider's
+  `--attribute-condition` and the service account's `workloadIdentityUser`
+  binding both need an entry for each role's name — widening either to a
+  whole-pool or prefix match instead would let *any* future Lambda in the
+  account impersonate the Vertex/Drive service account, which is a materially
+  bigger trust grant than intended. See step 5 of "NotebookLM sync setup."
+- **Weekend-only polling schedule**: chosen to keep the sync cheap (9
+  invocations/week) at the cost of up to a multi-day lag for notes entered
+  Monday–Friday directly in Notion (the Telegram bot path is unaffected — that
+  pipeline is separate and instant). The Monday 00:00 IST catch-up exists
+  specifically to close the gap a Sunday-evening class would otherwise leave
+  until the following Saturday.
