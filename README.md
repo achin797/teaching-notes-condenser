@@ -1,6 +1,6 @@
 # Teaching notes condenser
 
-Send raw class notes to a Telegram bot. It condenses them with Gemini 3.6 Flash
+Send raw class notes to a Telegram bot. It condenses them with Gemini 3.8 Flash
 on Vertex AI and adds a row to your Notion database: title (month and day, e.g.
 "July 16"), today's date, the raw notes, and the condensed entry as the page body.
 
