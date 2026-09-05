@@ -285,7 +285,7 @@ You'll be prompted for the stack parameters:
 - `VertexProject` — the GCP project id from step 4b above
 - `VertexLocation` — defaults to `global`, which sidesteps per-region model
   availability checks
-- `GeminiModelId` — defaults to `gemini-3.6-flash`
+- `GeminiModelId` — defaults to `gemini-3.8-flash`
 - `LocalTz` — defaults to `Asia/Kolkata`; change if you're not in that timezone
   (used to compute the Date field correctly — Lambda runs in UTC)
 - `DriveDocId` — the Google Doc file ID from step 2 of "NotebookLM sync setup"

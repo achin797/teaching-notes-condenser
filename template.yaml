@@ -43,8 +43,8 @@ Parameters:
     Description: Vertex AI location. "global" avoids per-region model availability checks.
   GeminiModelId:
     Type: String
-    Default: gemini-3.6-flash
-    Description: Gemini model id, e.g. gemini-3.6-flash.
+    Default: gemini-3.8-flash
+    Description: Gemini model id, e.g. gemini-3.8-flash.
   LocalTz:
     Type: String
     Default: Asia/Kolkata

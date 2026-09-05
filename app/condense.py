@@ -37,7 +37,7 @@ def condense(raw_notes: str) -> str:
     """Call Gemini to condense raw_notes. Returns the condensed markdown entry."""
     prompt = _PROMPT_TEMPLATE.replace("{RAW_NOTES}", raw_notes)
 
-    # temperature is deprecated and silently ignored on gemini-3.6-flash (no
+    # temperature is deprecated and silently ignored on gemini-3.8-flash (no
     # error, no warning) — thinking_level is the real lever now. Pinned
     # explicitly to MEDIUM (this model's own default) rather than left unset,
     # so behavior doesn't silently drift if Google changes the default or
