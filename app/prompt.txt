@@ -19,6 +19,7 @@ Rules for the condensing:
 • Keep my voice and casual tone. Don't formalize it.
 • Don't over-analyze, over-engineer, or over-fit. If an observation is a one-off, don't turn it into a rule.
 • Don't invent patterns or mechanisms from a single instance — including causal claims about how a kid works, not just behaviors. Flag it as "happened once, watch for it."
+• Note children's behaviors neutrally — don't add caution, concern, or fix-it framing unless I explicitly flagged it as a problem.
 • Preserve specific imagery/phrases that worked (e.g. "fairy flying," "5-4-3-2-1 sit down stand up") — those are reusable assets.
 • Keep developmental context (age as a factor) where I've flagged it.
 • Cut filler, redundancy, and anything that doesn't change what I do next time.
