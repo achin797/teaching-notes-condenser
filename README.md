@@ -506,8 +506,10 @@ archived state.
    `app/gcp-wif-credentials.json` is still valid — the pool, provider and
    service account were disabled, not deleted.
 3. **Telegram** — `@BotFather` → `/token` → pick the bot → copy the token.
-4. **Notion** — my-integrations → copy the integration secret; reconnect the
-   integration to the database (`...` → Connections). Check "Read content" is on.
+4. **Notion** — the integration was deleted at archive time, so create a new
+   one (Prerequisites 2–3): copy its secret, turn on "Read content" (step 4 of
+   "NotebookLM sync setup"), and connect it to the database (`...` →
+   Connections).
 5. **Check the model id** — `gemini-3.8-flash` may have been retired; pass a
    current one as `GeminiModelId`.
 6. **Deploy** — `sam build --use-container && sam deploy --guided`. Non-secret
