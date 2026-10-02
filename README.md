@@ -1,5 +1,11 @@
 # Teaching notes condenser
 
+> **Status: archived 2026-10-02.** Nothing is deployed. The AWS stack is deleted,
+> the Telegram and Notion tokens are revoked, and the GCP service account and
+> Workload Identity pool are disabled. The Notion database, the Google Doc and
+> the NotebookLM notebook are kept as a read-only record. See
+> [Reviving the project](#reviving-the-project) to bring it back.
+
 Send raw class notes to a Telegram bot. It condenses them with Gemini 3.8 Flash
 on Vertex AI and adds a row to your Notion database: title (month and day, e.g.
 "July 16"), today's date, the raw notes, and the condensed entry as the page body.
@@ -482,3 +488,37 @@ Notion→Drive→NotebookLM pipeline:
   pipeline is separate and instant). The Monday 00:00 IST catch-up exists
   specifically to close the gap a Sunday-evening class would otherwise leave
   until the following Saturday.
+
+## Reviving the project
+
+Everything below "Prerequisites" still applies; this is the short path from the
+archived state.
+
+1. **GitHub** — Settings → Unarchive this repository.
+2. **GCP** — re-enable what was disabled (project `<gcp-project-id>`):
+   ```bash
+   P=<gcp-project-id>
+   gcloud iam service-accounts enable "teaching-notes-vertex@${P}.iam.gserviceaccount.com" --project=$P
+   gcloud iam workload-identity-pools update aws-lambda-pool --location=global --project=$P --no-disabled
+   gcloud iam workload-identity-pools providers update-aws teaching-notes-condenser \
+     --location=global --project=$P --workload-identity-pool=aws-lambda-pool --no-disabled
+   ```
+   `app/gcp-wif-credentials.json` is still valid — the pool, provider and
+   service account were disabled, not deleted.
+3. **Telegram** — `@BotFather` → `/token` → pick the bot → copy the token.
+4. **Notion** — my-integrations → copy the integration secret; reconnect the
+   integration to the database (`...` → Connections). Check "Read content" is on.
+5. **Check the model id** — `gemini-3.8-flash` may have been retired; pass a
+   current one as `GeminiModelId`.
+6. **Deploy** — `sam build --use-container && sam deploy --guided`. Non-secret
+   answers may still be in a local `samconfig.toml`; the tokens and webhook
+   secret are always prompted.
+7. **Re-pin the federation trust** — the stack was deleted, so both Lambda
+   execution roles have new random suffixes. Set the provider's
+   `--attribute-condition` and add the two `workloadIdentityUser` bindings for
+   the new role names (step 5 of "NotebookLM sync setup"). The old bindings
+   were removed at archive time.
+8. **Drive** — share the Google Doc with the service account as Editor again.
+9. **Telegram webhook** — "Register the Telegram webhook" with the new
+   `FunctionUrl`.
+10. Run the verification checklist.
